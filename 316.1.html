@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Disk Scheduling Simulator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+    }
+
+    .disk-track {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 1.5rem;
+    }
+
+    .track-block {
+      width: 48px;
+      height: 48px;
+      background-color: #e5e7eb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      font-weight: 500;
+      font-size: 14px;
+      transition: transform 0.2s ease, background-color 0.3s ease;
+    }
+
+    .track-block:hover {
+      transform: translateY(-2px);
+    }
+
+    .head {
+      background-color: #2563eb !important;
+      color: white;
+    }
+
+    .visited {
+      background-color: #059669 !important;
+      color: white;
+    }
+
+    .animating {
+      transform: scale(1.1);
+      box-shadow: 0 0 10px rgba(37, 99, 235, 0.5);
+    }
+
+    .best-algorithm {
+      background-color: #fef3c7;
+      border: 2px solid #f59e0b;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+    }
+
+    .btn {
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      padding: 1.5rem;
+    }
+
+    footer {
+      border-top: 1px solid #e5e7eb;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+  <!-- Header -->
+  <header class="bg-white shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+      <div class="flex items-center">
+        <img src="image.png" alt="Logo" class="h-10 w-10 mr-3" />
+        <h1 class="text-2xl font-semibold text-gray-900">Disk Scheduling Simulator</h1>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
+    <div class="card">
+      <h2 class="text-2xl font-bold mb-6 text-gray-900">Advanced Disk Scheduling Simulator</h2>
+
+      <!-- Inputs -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Select Algorithm</label>
+          <select id="algorithm" class="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            <option value="FCFS">FCFS</option>
+            <option value="SSTF">SSTF</option>
+            <option value="SCAN">SCAN</option>
+            <option value="CSCAN">C-SCAN</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Initial Head Position</label>
+          <input id="head" type="number" class="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 50" />
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Disk Requests (comma-separated)</label>
+          <input id="requests" type="text" placeholder="e.g., 98,183,37,122,14,124,65,67" class="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Comparison Criterion</label>
+          <select id="comparisonCriterion" class="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            <option value="totalMovement">Total Head Movement</option>
+            <option value="avgSeekTime">Average Seek Time</option>
+            <option value="maxSeekTime">Maximum Seek Time</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Buttons -->
+      <div class="mt-8 flex justify-center gap-4 flex-wrap">
+        <button onclick="simulate()" class="btn bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg">Simulate</button>
+        <button onclick="startAnimation()" class="btn bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg">Start Animation</button>
+        <button onclick="resetSimulator()" class="btn bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-6 rounded-lg">Reset</button>
+        <button onclick="toggleGraph()" class="btn bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-6 rounded-lg">Toggle Graph</button>
+        <button onclick="compareAlgorithms()" class="btn bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-6 rounded-lg">Compare Algorithms</button>
+      </div>
+
+      <!-- Simulation Output -->
+      <div class="mt-8">
+        <h3 class="text-xl font-semibold text-gray-900 mb-4">Simulation Result</h3>
+        <div id="simulationOutput" class="disk-track"></div>
+        <div class="mt-4 text-lg font-medium text-green-600" id="resultStats"></div>
+      </div>
+
+      <!-- Chart Output -->
+      <div id="graphSection" class="mt-8 hidden">
+        <h3 class="text-xl font-semibold text-gray-900 mb-4">Disk Head Movement Graph</h3>
+        <canvas id="headMovementChart" class="w-full h-80"></canvas>
+      </div>
+
+      <!-- Comparison Output -->
+      <div id="comparisonSection" class="mt-8 hidden">
+        <h3 class="text-xl font-semibold text-gray-900 mb-4">Algorithm Comparison</h3>
+        <div id="bestAlgorithm" class="text-lg font-medium text-purple-600 mb-4"></div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-gray-100">
+                <th class="p-3 border border-gray-200">Algorithm</th>
+                <th class="p-3 border border-gray-200">Seek Sequence</th>
+                <th class="p-3 border border-gray-200">Total Head Movement</th>
+                <th class="p-3 border border-gray-200">Avg Seek Time</th>
+                <th class="p-3 border border-gray-200">Max Seek Time</th>
+              </tr>
+            </thead>
+            <tbody id="comparisonTable"></tbody>
+          </table>
+        </div>
+        <div id="bestAlgoExplanation" class="mt-4 text-gray-700"></div>
+      </div>
+
+      <!-- History -->
+      <div class="mt-8 flex justify-center">
+        <button onclick="toggleHistory()" class="btn bg-yellow-600 hover:bg-yellow-700 text-white font-medium py-2 px-6 rounded-lg">Show/Hide History</button>
+      </div>
+
+      <div id="historySection" class="mt-8 hidden">
+        <h3 class="text-xl font-semibold text-gray-900 mb-4">Simulation History</h3>
+        <div id="history" class="space-y-4"></div>
+        <button onclick="clearHistory()" class="btn bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-6 rounded-lg mt-4">Clear History</button>
+        <button id="downloadBtn" class="btn bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg mt-4" style="display: none;">Download History</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white mt-8 py-6">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-gray-500">
+      <p>© 2025 Disk Scheduling Simulator. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script>
+    let chartInstance = null;
+    let history = [];
+    let currentOrder = [];
+    let initialHead = 0;
+    let totalMovement = 0;
+
+    function simulate() {
+      const algo = document.getElementById('algorithm').value;
+      let head = parseInt(document.getElementById('head').value);
+      const requests = document.getElementById('requests').value
+        .split(',')
+        .map(r => parseInt(r.trim()))
+        .filter(r => !isNaN(r));
+
+      if (isNaN(head) || requests.length === 0) {
+        alert('Please enter valid inputs!');
+        return;
+      }
+
+      currentOrder = [];
+      totalMovement = 0;
+      const diskSize = 200;
+
+      switch (algo) {
+        case 'FCFS':
+          currentOrder = [...requests];
+          totalMovement = requests.reduce((acc, curr) => {
+            const diff = Math.abs(head - curr);
+            head = curr;
+            return acc + diff;
+          }, 0);
+          break;
+
+        case 'SSTF':
+          let reqs = [...requests];
+          while (reqs.length > 0) {
+            reqs.sort((a, b) => Math.abs(a - head) - Math.abs(b - head));
+            const closest = reqs.shift();
+            totalMovement += Math.abs(head - closest);
+            head = closest;
+            currentOrder.push(closest);
+          }
+          break;
+
+        case 'SCAN':
+          let left = requests.filter(r => r < head).sort((a, b) => b - a);
+          let right = requests.filter(r => r >= head).sort((a, b) => a - b);
+          currentOrder = [...right, ...left];
+          for (let i = 0; i < currentOrder.length; i++) {
+            totalMovement += Math.abs(head - currentOrder[i]);
+            head = currentOrder[i];
+          }
+          break;
+
+        case 'CSCAN':
+          let leftCS = requests.filter(r => r < head).sort((a, b) => a - b);
+          let rightCS = requests.filter(r => r >= head).sort((a, b) => a - b);
+          currentOrder = [...rightCS, diskSize - 1, 0, ...leftCS];
+          for (let i = 0; i < currentOrder.length; i++) {
+            totalMovement += Math.abs(head - currentOrder[i]);
+            head = currentOrder[i];
+          }
+          break;
+
+        default:
+          alert('This algorithm is not yet implemented!');
+          return;
+      }
+
+      initialHead = parseInt(document.getElementById('head').value);
+      renderOutput(currentOrder, totalMovement, initialHead);
+      saveHistory(algo, [initialHead, ...currentOrder], totalMovement);
+      document.getElementById('downloadBtn').style.display = 'inline-block';
+    }
+
+    function startAnimation() {
+      if (currentOrder.length === 0) {
+        alert('Please run a simulation first!');
+        return;
+      }
+
+      const output = document.getElementById('simulationOutput');
+      output.innerHTML = '';
+      const blocks = [initialHead, ...currentOrder];
+
+      blocks.forEach((value, index) => {
+        const div = document.createElement('div');
+        div.className = 'track-block';
+        div.classList.add(index === 0 ? 'head' : 'visited');
+        div.id = `block-${index}`;
+        div.textContent = value;
+        output.appendChild(div);
+      });
+
+      let currentStep = 0;
+      function animateStep() {
+        if (currentStep > 0) {
+          document.getElementById(`block-${currentStep - 1}`).classList.remove('animating');
+        }
+        if (currentStep < blocks.length) {
+          const block = document.getElementById(`block-${currentStep}`);
+          block.classList.add('animating');
+          currentStep++;
+          setTimeout(animateStep, 500);
+        } else {
+          document.getElementById('resultStats').innerText = `Total Head Movement: ${totalMovement} cylinders`;
+        }
+      }
+      animateStep();
+    }
+
+    function compareAlgorithms() {
+      let head = parseInt(document.getElementById('head').value);
+      const requests = document.getElementById('requests').value
+        .split(',')
+        .map(r => parseInt(r.trim()))
+        .filter(r => !isNaN(r));
+
+      if (isNaN(head) || requests.length === 0) {
+        alert('Please enter valid inputs!');
+        return;
+      }
+
+      const criterion = document.getElementById('comparisonCriterion').value;
+      const algorithms = ['FCFS', 'SSTF', 'SCAN', 'CSCAN'];
+      const results = [];
+      const diskSize = 200;
+
+      algorithms.forEach(algo => {
+        let order = [];
+        let totalMovement = 0;
+        let seekTimes = [];
+        let currentHead = head;
+
+        switch (algo) {
+          case 'FCFS':
+            order = [...requests];
+            totalMovement = requests.reduce((acc, curr) => {
+              const diff = Math.abs(currentHead - curr);
+              seekTimes.push(diff);
+              currentHead = curr;
+              return acc + diff;
+            }, 0);
+            break;
+
+          case 'SSTF':
+            let reqs = [...requests];
+            while (reqs.length > 0) {
+              reqs.sort((a, b) => Math.abs(a - currentHead) - Math.abs(b - currentHead));
+              const closest = reqs.shift();
+              const diff = Math.abs(currentHead - closest);
+              seekTimes.push(diff);
+              totalMovement += diff;
+              currentHead = closest;
+              order.push(closest);
+            }
+            break;
+
+          case 'SCAN':
+            let left = requests.filter(r => r < currentHead).sort((a, b) => b - a);
+            let right = requests.filter(r => r >= currentHead).sort((a, b) => a - b);
+            order = [...right, ...left];
+            for (let i = 0; i < order.length; i++) {
+              const diff = Math.abs(currentHead - order[i]);
+              seekTimes.push(diff);
+              totalMovement += diff;
+              currentHead = order[i];
+            }
+            break;
+
+          case 'CSCAN':
+            let leftCS = requests.filter(r => r < head).sort((a, b) => a - b);
+            let rightCS = requests.filter(r => r >= head).sort((a, b) => a - b);
+            order = [...rightCS, diskSize - 1, 0, ...leftCS];
+            for (let i = 0; i < order.length; i++) {
+              const diff = Math.abs(currentHead - order[i]);
+              seekTimes.push(diff);
+              totalMovement += diff;
+              currentHead = order[i];
+            }
+            break;
+        }
+
+        const avgSeekTime = totalMovement / requests.length;
+        const maxSeekTime = Math.max(...seekTimes);
+
+        results.push({
+          algorithm: algo,
+          sequence: [head, ...order],
+          totalMovement,
+          avgSeekTime,
+          maxSeekTime
+        });
+      });
+
+      let bestAlgo;
+      if (criterion === 'totalMovement') {
+        bestAlgo = results.reduce((min, curr) => curr.totalMovement < min.totalMovement ? curr : min, results[0]);
+      } else if (criterion === 'avgSeekTime') {
+        bestAlgo = results.reduce((min, curr) => curr.avgSeekTime < min.avgSeekTime ? curr : min, results[0]);
+      } else if (criterion === 'maxSeekTime') {
+        bestAlgo = results.reduce((min, curr) => curr.maxSeekTime < min.maxSeekTime ? curr : min, results[0]);
+      }
+
+      const tableBody = document.getElementById('comparisonTable');
+      tableBody.innerHTML = '';
+      results.forEach(result => {
+        const row = document.createElement('tr');
+        row.className = result.algorithm === bestAlgo.algorithm ? 'best-algorithm' : '';
+        row.innerHTML = `
+          <td class="p-3 border border-gray-200">${result.algorithm}</td>
+          <td class="p-3 border border-gray-200">${result.sequence.join(' → ')}</td>
+          <td class="p-3 border border-gray-200">${result.totalMovement} cylinders</td>
+          <td class="p-3 border border-gray-200">${result.avgSeekTime.toFixed(2)} cylinders</td>
+          <td class="p-3 border border-gray-200">${result.maxSeekTime} cylinders</td>
+        `;
+        tableBody.appendChild(row);
+      });
+
+      let bestAlgoText = `Best Algorithm: ${bestAlgo.algorithm} (`;
+      if (criterion === 'totalMovement') {
+        bestAlgoText += `Total Head Movement: ${bestAlgo.totalMovement} cylinders`;
+      } else if (criterion === 'avgSeekTime') {
+        bestAlgoText += `Average Seek Time: ${bestAlgo.avgSeekTime.toFixed(2)} cylinders`;
+      } else {
+        bestAlgoText += `Maximum Seek Time: ${bestAlgo.maxSeekTime} cylinders`;
+      }
+      bestAlgoText += ')';
+      document.getElementById('bestAlgorithm').innerText = bestAlgoText;
+
+      let explanation = `<strong>Why ${bestAlgo.algorithm} is the Best:</strong> `;
+      if (bestAlgo.algorithm === 'FCFS') {
+        explanation += 'FCFS (First-Come, First-Served) performs best here because the request order aligns closely with the head’s movement, minimizing ';
+        if (criterion === 'totalMovement') explanation += 'total head movement.';
+        else if (criterion === 'avgSeekTime') explanation += 'average seek time.';
+        else explanation += 'maximum seek time between requests.';
+      } else if (bestAlgo.algorithm === 'SSTF') {
+        explanation += 'SSTF (Shortest Seek Time First) is optimal because it always chooses the closest request, reducing ';
+        if (criterion === 'totalMovement') explanation += 'total head movement by servicing nearby requests first.';
+        else if (criterion === 'avgSeekTime') explanation += 'average seek time by prioritizing proximity.';
+        else explanation += 'maximum seek time by avoiding long jumps.';
+      } else if (bestAlgo.algorithm === 'SCAN') {
+        explanation += 'SCAN (Elevator algorithm) excels because it services requests in one direction before reversing, balancing efficiency and fairness, thus minimizing ';
+        if (criterion === 'totalMovement') explanation += 'total head movement.';
+        else if (criterion === 'avgSeekTime') explanation += 'average seek time.';
+        else explanation += 'maximum seek time.';
+      } else if (bestAlgo.algorithm === 'CSCAN') {
+        explanation += 'C-SCAN (Circular Scan) is best as it services requests in one direction and returns to the start, providing uniform access times and minimizing ';
+        if (criterion === 'totalMovement') explanation += 'total head movement.';
+        else if (criterion === 'avgSeekTime') explanation += 'average seek time.';
+        else explanation += 'maximum seek time.';
+      }
+      document.getElementById('bestAlgoExplanation').innerHTML = explanation;
+
+      document.getElementById('comparisonSection').classList.remove('hidden');
+    }
+
+    function renderOutput(order, movement, initialHead) {
+      const output = document.getElementById('simulationOutput');
+      output.innerHTML = '';
+      const blocks = [...order];
+      blocks.unshift(initialHead);
+
+      blocks.forEach((value, index) => {
+        const div = document.createElement('div');
+        div.className = 'track-block';
+        div.classList.add(index === 0 ? 'head' : 'visited');
+        div.id = `block-${index}`;
+        div.textContent = value;
+        output.appendChild(div);
+      });
+
+      document.getElementById('resultStats').innerText = `Total Head Movement: ${movement} cylinders`;
+      drawChart(blocks);
+    }
+
+    function drawChart(data) {
+      const ctx = document.getElementById('headMovementChart').getContext('2d');
+      const labels = data.map((_, i) => `Step ${i}`);
+
+      if (chartInstance) chartInstance.destroy();
+
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Head Position',
+            data: data,
+            borderColor: '#2563eb',
+            backgroundColor: 'rgba(37, 99, 235, 0.1)',
+            fill: false,
+            tension: 0.2,
+            pointRadius: 5,
+            pointBackgroundColor: '#059669'
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'top' }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: 'Cylinder', font: { size: 14 } }
+            },
+            x: {
+              title: { display: true, text: 'Step', font: { size: 14 } }
+            }
+          }
+        }
+      });
+    }
+
+    function resetSimulator() {
+      document.getElementById('head').value = '';
+      document.getElementById('requests').value = '';
+      document.getElementById('simulationOutput').innerHTML = '';
+      document.getElementById('resultStats').innerText = '';
+      document.getElementById('graphSection').classList.add('hidden');
+      document.getElementById('comparisonSection').classList.add('hidden');
+      currentOrder = [];
+      initialHead = 0;
+      totalMovement = 0;
+      if (chartInstance) chartInstance.destroy();
+      document.getElementById('downloadBtn').style.display = 'none';
+    }
+
+    function toggleGraph() {
+      document.getElementById('graphSection').classList.toggle('hidden');
+    }
+
+    function toggleHistory() {
+      const section = document.getElementById('historySection');
+      section.classList.toggle('hidden');
+      if (!section.classList.contains('hidden')) updateHistory();
+    }
+
+    function saveHistory(algorithm, sequence, movement) {
+      history.push({
+        algorithm,
+        sequence,
+        movement,
+        timestamp: new Date().toLocaleString()
+      });
+    }
+
+    function updateHistory() {
+      const container = document.getElementById('history');
+      container.innerHTML = '';
+      if (history.length === 0) {
+        container.innerHTML = '<p class="text-gray-500">No history available.</p>';
+        return;
+      }
+      history.forEach((entry, index) => {
+        const div = document.createElement('div');
+        div.className = 'bg-gray-50 p-4 rounded-lg shadow-sm';
+        div.innerHTML = `
+          <p><strong>#${index + 1} | Algorithm:</strong> ${entry.algorithm}</p>
+          <p><strong>Seek Sequence:</strong> ${entry.sequence.join(' → ')}</p>
+          <p><strong>Total Head Movement:</strong> ${entry.movement} cylinders</p>
+          <p><strong>Timestamp:</strong> ${entry.timestamp}</p>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function clearHistory() {
+      history = [];
+      updateHistory();
+      document.getElementById('downloadBtn').style.display = 'none';
+    }
+
+    document.getElementById('downloadBtn').addEventListener('click', function() {
+      if (history.length === 0) {
+        alert('No history to download!');
+        return;
+      }
+
+      let csvContent = 'data:text/csv;charset=utf-8,';
+      csvContent += 'Index,Algorithm,Seek Sequence,Total Head Movement,Timestamp\n';
+      history.forEach((entry, index) => {
+        const row = [
+          index + 1,
+          entry.algorithm,
+          `"${entry.sequence.join(' → ')}"`,
+          entry.movement,
+          `"${entry.timestamp}"`
+        ].join(',');
+        csvContent += row + '\n';
+      });
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', 'simulation_history.csv');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    });
+  </script>
+</body>
+</html>
